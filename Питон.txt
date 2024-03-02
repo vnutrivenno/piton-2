@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity >=0.7.0 <0.9.0;
+
+contract RealEstateMarket {
+    address public owner;
+    uint public estateCount;
+    uint public adCount;
+
+    struct Estate {
+        address owner;
+        bool isActive;
+        string estateType;
+    }
+
+    struct Ad {
+        address owner;
+        uint estateId;
+        bool isOpen;
+        uint price;
+    }
+
+    mapping(uint => Estate) public estates;
+    mapping(uint => Ad) public ads;
+
+    event createdEstate(address indexed owner, uint indexed estateId, string estateType, uint date);
+    event createdAd(address indexed owner, uint indexed estateId, uint indexed adId, uint date, uint price);
+    event updatedAdType(address indexed owner, uint indexed estateId, uint date, bool isActive);
+    event updatedEstateActive(address indexed owner, uint indexed estateId, uint indexed adId, uint date, bool isActive);
+    event estatePurchased(address indexed owner, address indexed buyer, uint indexed adId, uint estateId, bool isOpen, uint date, uint price);
+    event fundsBack(address indexed recipient, uint amount, uint date);
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "You are not the owner of the contract!");
+        _;
+    }
+
+    function createEstate(string memory _estateType) public onlyOwner {
+        estateCount++;
+        estates[estateCount] = Estate(msg.sender, true, _estateType);
+        emit createdEstate(msg.sender, estateCount, _estateType, block.timestamp);
+    }
+
+    function createAd(uint _estateId, uint _price) public {
+        require(estates[_estateId].isActive, "The estate is not active.");
+        require(msg.sender == estates[_estateId].owner, "You are not the owner of this estate.");
+        adCount++;
+        ads[adCount] = Ad(msg.sender, _estateId, true, _price);
+        emit createdAd(msg.sender, _estateId, adCount, block.timestamp, _price);
+    }
+
+    function changeEstateStatus(uint _estateId, bool _isActive) public onlyOwner {
+        require(estates[_estateId].owner == msg.sender, "You are not the owner of this estate.");
+        estates[_estateId].isActive = _isActive;
+        emit updatedAdType(msg.sender, _estateId, block.timestamp, _isActive);
+        if (!_isActive) {
+            closeAdsForEstate(_estateId);
+        }
+    }
+
+    function changeAdStatus(uint _adId, bool _isOpen) public onlyOwner {
+        require(ads[_adId].owner == msg.sender, "You are not the owner of this ad.");
+        ads[_adId].isOpen = _isOpen;
+        emit updatedEstateActive(msg.sender, ads[_adId].estateId, _adId, block.timestamp, _isOpen);
+    }
+
+    function closeAdsForEstate(uint _estateId) private {
+        for (uint i = 1; i <= adCount; i++) {
+            if (ads[i].estateId == _estateId && ads[i].isOpen) {
+                ads[i].isOpen = false;
+                emit updatedEstateActive(msg.sender, ads[i].estateId, i, block.timestamp, false);
+            }
+        }
+    }
+
+    function withdraw(uint _amount) public onlyOwner {
+        require(_amount > 0 && _amount <= address(this).balance, "Invalid withdrawal amount.");
+        payable(msg.sender).transfer(_amount);
+        emit fundsBack(msg.sender, _amount, block.timestamp);
+    }
+
+    function getBalance() public view onlyOwner returns (uint) {
+        return address(this).balance;
+    }
+
+    function getAllEstates() public view returns (Estate[] memory) {
+        Estate[] memory allEstates = new Estate[](estateCount);
+        for (uint i = 1; i <= estateCount; i++) {
+            allEstates[i - 1] = estates[i];
+        }
+        return allEstates;
+    }
+
+    function getAllAds() public view returns (Ad[] memory) {
+        Ad[] memory allAds = new Ad[](adCount);
+        for (uint i = 1; i <= adCount; i++) {
+            allAds[i - 1] = ads[i];
+        }
+        return allAds;
+    }
+}
